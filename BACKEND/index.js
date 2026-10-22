@@ -24,19 +24,38 @@ import empresasRouter       from './routes/empresas.js'
 
 const app = express()
 
-app.use(cors({ 
-  origin: [
-    process.env.FRONTEND_URL,
-    'http://localhost:5173',
-    'https://localhost:5173',
-  ] 
+// ─── CORS ──────────────────────────────────────────────
+// FRONTEND_URL acepta varios dominios separados por coma:
+// FRONTEND_URL=https://texticode-lime.vercel.app,https://texticodewagner.netlify.app
+const allowedOrigins = [
+  ...(process.env.FRONTEND_URL || '')
+    .split(',')
+    .map(o => o.trim().replace(/\/$/, ''))
+    .filter(Boolean),
+  'http://localhost:5173',
+  'https://localhost:5173',
+]
+
+app.use(cors({
+  origin(origin, callback) {
+    // Permite peticiones sin Origin (Postman, curl, health checks)
+    if (!origin || allowedOrigins.includes(origin)) return callback(null, true)
+    return callback(new Error(`Origen no permitido por CORS: ${origin}`))
+  },
 }))
 app.use(express.json({ limit: '10mb' }))
 
+// ─── Health ────────────────────────────────────────────
 app.get('/health', async (req, res) => {
-  res.json({ ok: true, service: 'texticode-api' })
+  try {
+    await checkDatabaseConnection()
+    res.json({ ok: true, service: 'texticode-api', db: 'ok', vercel: !!process.env.VERCEL })
+  } catch (err) {
+    res.status(500).json({ ok: false, service: 'texticode-api', db: 'error', error: err.message })
+  }
 })
 
+// ─── Rutas ─────────────────────────────────────────────
 app.use('/api/usuarios',         usuariosRouter)
 app.use('/api/materiales',       requireAuth, materialesRouter)
 app.use('/api/ordenes',          requireAuth, ordenesRouter)
@@ -90,9 +109,16 @@ app.get('/', (req, res) => {
   })
 })
 
+// ─── Manejo de errores (incluye rechazos de CORS) ─────
+app.use((err, req, res, next) => {
+  console.error('❌', err.message)
+  res.status(err.status || 500).json({ error: err.message })
+})
+
 const PORT = env.port
 
 export { app }
+export default app
 
 export async function startServer() {
   validateEnv()
@@ -108,7 +134,8 @@ export async function startServer() {
   })
 }
 
-if (process.env.NODE_ENV !== 'test') {
+// En Vercel NO se levanta servidor: Vercel importa `app` como función serverless.
+// En local y en Docker sigue funcionando igual que antes.
+if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
   startServer()
 }
-

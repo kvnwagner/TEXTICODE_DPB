@@ -3,6 +3,12 @@ import { env } from './config/env.js'
 
 const { Pool } = pg
 
+const enVercel = !!process.env.VERCEL
+
+if (!env.databaseUrl) {
+  console.error('❌ Falta la variable de conexión a la base de datos (DATABASE_URL)')
+}
+
 // Detecta si la base es local (Docker) o remota (Supabase)
 function usarSSL(connectionString) {
   if (process.env.DB_SSL === 'true') return true
@@ -18,9 +24,22 @@ function usarSSL(connectionString) {
 
 const ssl = usarSSL(env.databaseUrl)
 
+// En Vercel (serverless) cada instancia debe usar muy pocas conexiones,
+// porque pueden existir varias instancias al mismo tiempo.
+// En local / Docker se mantiene un pool normal.
+const max = Number(process.env.DB_POOL_MAX) || (enVercel ? 1 : 10)
+
 const pool = new Pool({
   connectionString: env.databaseUrl,
-  ssl: ssl ? { rejectUnauthorized: false } : false
+  ssl: ssl ? { rejectUnauthorized: false } : false,
+  max,
+  idleTimeoutMillis: enVercel ? 10_000 : 30_000,   // libera conexiones inactivas
+  connectionTimeoutMillis: 10_000,                  // falla rápido si la base no responde
+})
+
+// Evita que el proceso se caiga si Supabase cierra una conexión inactiva
+pool.on('error', (err) => {
+  console.error('⚠️ Error inesperado en el pool de PostgreSQL:', err.message)
 })
 
 export async function checkDatabaseConnection() {
