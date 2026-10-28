@@ -7,5 +7,9 @@
   // Las variables y secretos se administran desde el dashboard de Cloudflare
   // (Settings → Variables and Secrets); keep_vars evita que un deploy las borre.
   "keep_vars": true,
+  // Conexión a Supabase PostgreSQL a través de Hyperdrive
+  "hyperdrive": [
+    { "binding": "HYPERDRIVE", "id": "4a8665001d244b50a8ab2c5f1f80dd9b" }
+  ],
   "observability": { "enabled": true }
 }

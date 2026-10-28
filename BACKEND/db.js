@@ -32,10 +32,19 @@ const max = Number(process.env.DB_POOL_MAX) || (enVercel ? 1 : 10)
 
 // En Cloudflare Workers una conexión no se puede reutilizar entre peticiones,
 // así que se abre un Client nuevo por consulta (misma interfaz que Pool).
+// Si existe el binding de Hyperdrive se usa su cadena de conexión (sin SSL,
+// Hyperdrive se encarga del TLS hacia Supabase); si no, DATABASE_URL.
+function configWorkers(config) {
+  const hyperdrive = globalThis.__TEXTICODE_HYPERDRIVE_URL
+  return hyperdrive
+    ? { connectionString: hyperdrive, ssl: false, connectionTimeoutMillis: config.connectionTimeoutMillis }
+    : config
+}
+
 function crearPoolWorkers(config) {
   return {
     async query(...args) {
-      const client = new pg.Client(config)
+      const client = new pg.Client(configWorkers(config))
       await client.connect()
       try {
         return await client.query(...args)
@@ -44,7 +53,7 @@ function crearPoolWorkers(config) {
       }
     },
     async connect() {
-      const client = new pg.Client(config)
+      const client = new pg.Client(configWorkers(config))
       await client.connect()
       client.release = () => { client.end().catch(() => {}) }
       return client
@@ -84,7 +93,8 @@ export async function infoBaseDatos() {
     proyecto = usuario.includes('.') ? usuario.split('.')[1] : (host.match(/^db\.([a-z0-9]+)\./)?.[1] ?? null)
   } catch {}
   const plataforma = enWorkers ? 'cloudflare-workers' : enVercel ? 'vercel' : 'local'
-  return { plataforma, db_host: host, supabase_ref: proyecto }
+  const conexion = enWorkers && globalThis.__TEXTICODE_HYPERDRIVE_URL ? 'hyperdrive' : 'directa'
+  return { plataforma, conexion, db_host: host, supabase_ref: proyecto }
 }
 
 export async function checkDatabaseConnection() {
