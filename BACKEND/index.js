@@ -3,7 +3,7 @@ import cors from 'cors'
 import { env, validateEnv } from './config/env.js'
 import { requireAuth } from './middleware/auth.js'
 import { requireRoles } from './middleware/roles.js'
-import { checkDatabaseConnection } from './db.js'
+import { checkDatabaseConnection, infoBaseDatos } from './db.js'
 
 import usuariosRouter       from './routes/usuarios.js'
 import materialesRouter     from './routes/materiales.js'
@@ -49,7 +49,7 @@ app.use(express.json({ limit: '10mb' }))
 app.get('/health', async (req, res) => {
   try {
     await checkDatabaseConnection()
-    res.json({ ok: true, service: 'texticode-api', db: 'ok', vercel: !!process.env.VERCEL })
+    res.json({ ok: true, service: 'texticode-api', db: 'ok', ...(await infoBaseDatos()) })
   } catch (err) {
     res.status(500).json({ ok: false, service: 'texticode-api', db: 'error', error: err.message })
   }
@@ -134,8 +134,11 @@ export async function startServer() {
   })
 }
 
-// En Vercel NO se levanta servidor: Vercel importa `app` como función serverless.
+// En Vercel y en Cloudflare Workers NO se levanta servidor aquí:
+// Vercel importa `app` como función serverless y Workers usa worker.js.
 // En local y en Docker sigue funcionando igual que antes.
-if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
+const enWorkers = typeof navigator !== 'undefined' && navigator.userAgent === 'Cloudflare-Workers'
+
+if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL && !enWorkers) {
   startServer()
 }

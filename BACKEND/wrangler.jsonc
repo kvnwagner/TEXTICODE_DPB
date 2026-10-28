@@ -1,0 +1,11 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "texticode-api",
+  "main": "worker.js",
+  "compatibility_date": "2026-10-28",
+  "compatibility_flags": ["nodejs_compat"],
+  // Las variables y secretos se administran desde el dashboard de Cloudflare
+  // (Settings → Variables and Secrets); keep_vars evita que un deploy las borre.
+  "keep_vars": true,
+  "observability": { "enabled": true }
+}
