@@ -4,9 +4,18 @@ dotenv.config()
 
 const REQUIRED = ['DATABASE_URL', 'JWT_SECRET']
 
+// En Cloudflare Workers las variables se cargan desde el dashboard después del
+// primer deploy; si faltan, se avisa en los logs en vez de tumbar el Worker
+// (así el deploy no falla y /health muestra el error de conexión).
+const enWorkers = typeof navigator !== 'undefined' && navigator.userAgent === 'Cloudflare-Workers'
+
 export function requireEnv(name) {
   const value = process.env[name]
   if (!value || !String(value).trim()) {
+    if (enWorkers) {
+      console.error(`⚠️ Falta configurar la variable de entorno requerida: ${name}`)
+      return ''
+    }
     throw new Error(`Falta configurar la variable de entorno requerida: ${name}`)
   }
   return value
